@@ -40,6 +40,7 @@ def get_creds():
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
+    creds = None
     if os.path.exists(TOKEN):
         creds = Credentials.from_authorized_user_file(TOKEN, SCOPES)
     # If there are no (valid) credentials available, let the user log in.
