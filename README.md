@@ -8,6 +8,10 @@ Used this quickstart: https://developers.google.com/gmail/api/quickstart/python#
 
 Had to set up OAuth, add myself as a test user, run this script, continue through the security warnings, and allow access to my own data.  Service accounts don't work with gmail api, and token's don't seem to work well anymore either
 
+!!
+## YOU NEED TO DELETE token.json EVERY YEAR!
+!!
+
 ## Usage
 
 ```bash

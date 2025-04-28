@@ -1,9 +1,10 @@
 from __future__ import print_function
 
+import base64
 import os
 import re
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 
@@ -73,10 +74,40 @@ def get_query(q: list[str]):
 def get_emails(q: list[str]):
     """gets thread snippets"""
     query = get_query(q)
-    results = service.users().threads().list(userId="me", q=query).execute()
-    threads = results.get("threads", [])
+    out: list[dict[str, str]] = []
 
-    return [a["snippet"].lower() for a in threads]
+    results = service.users().threads().list(userId="me", q=query).execute() # type: ignore
+
+    # https://developers.google.com/resources/api-libraries/documentation/gmail/v1/python/latest/gmail_v1.users.messages.html
+    for thread in results.get("threads", []):
+        message = service.users().threads().get(userId="me", id=thread["id"]).execute()["messages"][0]
+
+        date = message["internalDate"]
+        date = datetime.fromtimestamp(int(date) / 1000)
+
+        # wow
+        body = message["payload"]["parts"][0]
+
+        while 'parts' in body:
+            body = body['parts'][0]
+
+        body = body['body']['data']
+
+        out.append(dict(
+            body=base64url_decode(body).lower(),
+            date=date,
+        ))
+
+    return out
+
+def base64url_decode(data: str) -> str:
+    """Decode a base64url encoded string."""
+    # Pad the string with '=' characters to make its length a multiple of 4
+    padding = "=" * ((4 - len(data) % 4) % 4)
+    data += padding
+
+    # Decode the base64url encoded string
+    return base64.urlsafe_b64decode(data).decode("utf-8")
 
 
 def format_date_mdy(d: datetime):
@@ -89,24 +120,26 @@ def format_date(d: datetime):
     return d.strftime("%Y/%m/%d")
 
 
+def get_last_day(m: datetime):
+    """returns the last day of the month"""
+    if m.month == 12:
+        return datetime(m.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        return datetime(m.year, m.month + 1, 1) - timedelta(days=1)
+
 def get_emails_for_month(m: int):
-    # TODO: we should just get all transactions for a month
-    # otherwise, we get wrong year data
-    before = datetime(YEAR, m, 15)
-    prev_year = YEAR - 1 if m == 1 else YEAR
-    prev_month = 12 if m == 1 else m - 1
-    after = datetime(prev_year, prev_month, 15)
+    after = datetime(YEAR, m, 1)
+    before = get_last_day(after)
 
     return get_emails(
         [
             "after:{0}".format(format_date(after)),
-            "before:{0}".format(format_date(before)),
+            "before:{0}".format(format_date(before + timedelta(days=1))),
         ]
     )
 
 
 def get_data_for_month(m: int):
-    date = format_date_mdy(datetime(YEAR, m, 1))
     emails = get_emails_for_month(m)
     output = []
 
@@ -115,14 +148,15 @@ def get_data_for_month(m: int):
     for name in names:
         name_parts = name.lower().split(" ")
         snippets = [
-            email for email in emails if all([name in email for name in name_parts])
+            email for email in emails if all([name in email['body'] for name in name_parts])
         ]
 
         for snippet in snippets:
-            money = re.findall(r"(\$\d+)\.", snippet)
+            money = re.findall(r"(\$[\d,]+)\.", snippet['body'])
 
             if len(money) > 0:
-                output.append([name, date, money[0]])
+                money = money[0].replace(",", "")
+                output.append([name, format_date_mdy(snippet['date']), money])
             else:
                 print("couldn't find money: {0}".format(snippet))
 
