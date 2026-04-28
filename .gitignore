@@ -2,3 +2,4 @@
 credentials.json
 service.json
 token.json
+.venv/

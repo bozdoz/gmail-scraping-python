@@ -1,10 +1,12 @@
-FROM python:3.11.12-bullseye
+FROM python:3.14-alpine
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements.* .
 
-RUN pip install -r requirements.txt
+RUN apk add --no-cache git
+
+RUN pip install pip-tools==7.5.3
 
 COPY . .
 

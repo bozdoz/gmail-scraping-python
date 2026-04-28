@@ -4,6 +4,8 @@ import base64
 import os
 import re
 
+from typing import Any, TypedDict
+
 from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
@@ -27,7 +29,7 @@ CREDENTIALS = "credentials.json"
 TOKEN = "token.json"
 
 # global google apis service
-service = None
+service: Any = None
 
 
 def get_service():
@@ -71,12 +73,16 @@ def get_query(q: list[str]):
     return " ".join(q)
 
 
+class Email(TypedDict):
+    body: str
+    date: datetime
+
 def get_emails(q: list[str]):
     """gets thread snippets"""
     query = get_query(q)
-    out: list[dict[str, str]] = []
+    out: list[Email] = []
 
-    results = service.users().threads().list(userId="me", q=query).execute() # type: ignore
+    results = service.users().threads().list(userId="me", q=query).execute()
 
     # https://developers.google.com/resources/api-libraries/documentation/gmail/v1/python/latest/gmail_v1.users.messages.html
     for thread in results.get("threads", []):
@@ -93,7 +99,7 @@ def get_emails(q: list[str]):
 
         body = body['body']['data']
 
-        out.append(dict(
+        out.append(Email(
             body=base64url_decode(body).lower(),
             date=date,
         ))
@@ -147,6 +153,7 @@ def get_data_for_month(m: int):
 
     for name in names:
         name_parts = name.lower().split(" ")
+        
         snippets = [
             email for email in emails if all([name in email['body'] for name in name_parts])
         ]
